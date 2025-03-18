@@ -3,26 +3,35 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using SecureAPI.Services; // Lisää tämä
+using SecureAPI.Models;  // Lisää tämä
+
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-	[HttpPost("login")]
-	public IActionResult Login(string username, string password)
+	private readonly UserService _userService;
+
+	public AuthController()
 	{
-		if (username == "admin" && password == "password")
+		_userService = new UserService();
+	}
+
+	[HttpPost("login")]
+	public IActionResult Login([FromBody] User user)
+	{
+		if (string.IsNullOrWhiteSpace(user.Username) || string.IsNullOrWhiteSpace(user.Password))
 		{
-			var tokenHandler = new JwtSecurityTokenHandler();
-			var key = Encoding.ASCII.GetBytes("Your_Secret_Key_Here");
-			var tokenDescriptor = new SecurityTokenDescriptor
-			{
-				Subject = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, username) }),
-				Expires = DateTime.UtcNow.AddHours(1),
-				SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-			};
-			var token = tokenHandler.CreateToken(tokenDescriptor);
-			return Ok(new { Token = tokenHandler.WriteToken(token) });
+			return BadRequest(new { message = "Username and password are required" });
 		}
-		return Unauthorized();
+
+		var authenticatedUser = _userService.Authenticate(user.Username, user.Password);
+
+		if (authenticatedUser == null)
+		{
+			return Unauthorized(new { message = "Invalid username or password" });
+		}
+
+		return Ok(new { message = "Login successful", user = authenticatedUser });
 	}
 }
